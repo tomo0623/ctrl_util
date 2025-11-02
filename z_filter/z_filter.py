@@ -177,6 +177,8 @@ class Z_Filter:
             denominator: 連続時間系の分母の係数 (an, an-1, ..., a2, a1, a0)
             numerator: 連続時間系の分子の係数 (cn, cn-1, ..., c2, c1, c0)
             sampling_freq: サンプリング周波数 [Hz]
+            is_prewarping: プリワーピング処理の有効化フラグ
+            prewarping_freq: プリワーピング周波数 [Hz]
         """
 
         self.a = np.array(denominator, dtype=float)

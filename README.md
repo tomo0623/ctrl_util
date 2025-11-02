@@ -127,6 +127,62 @@ output = adf.update(5.0)  # 出力 ≈ 0
 lpf.reset([0.5], mode="state")
 ```
 
+### 伝達関数の係数から直接フィルタを構成
+
+連続時間系の伝達関数の分母・分子係数から離散フィルタを作成できます。係数を与えるだけで、内部で双一次変換により離散化されます。
+
+```python
+import numpy as np
+
+# 例: LPF付き1次微分フィルタ
+tau_lpf = 0.1  # LPFの時定数
+tau_adf = 0.05  # 微分フィルタの時定数
+Fs = 100.0  # サンプリング周波数
+
+# 伝達関数: H(s) = C(s) / A(s)
+# $$H(s) = \frac{s/\tau_{lpf}}{1 + \frac{\tau_{lpf}+\tau_{adf}}{\tau_{lpf}\tau_{adf}}s + \frac{1}{\tau_{lpf}\tau_{adf}}s^2}$$
+
+# 分子係数 C(s) = c[0]*s + c[1]  (sの降べきの順)
+c = np.array([1/(tau_lpf*tau_adf), 0])
+
+# 分母係数 A(s) = a[0]*s^2 + a[1]*s + a[2]  (sの降べきの順)
+a = np.array([1, (tau_lpf+tau_adf)/(tau_lpf*tau_adf), 1/(tau_lpf*tau_adf)])
+
+# フィルタを構成
+filter = zf.Z_Filter(a, c, sampling_freq=Fs)
+
+# 使用
+output = filter.update(input_val)
+```
+
+**係数の指定方法:**
+
+伝達関数を以下の形式で表現します：
+
+$$H(s) = \frac{C(s)}{A(s)} = \frac{c_m s^m + c_{m-1} s^{m-1} + \cdots + c_0}{a_n s^n + a_{n-1} s^{n-1} + \cdots + a_0}$$
+
+- 分母係数 `a`: `[a_n, a_{n-1}, ..., a_0]` （$s$ の降べきの順）
+- 分子係数 `c`: `[c_m, c_{m-1}, ..., c_0]` （$s$ の降べきの順）
+
+**プリワーピング処理:**
+
+双一次変換（タスティン変換）では、高周波側で周波数特性が歪みます。プリワーピング処理を使用すると、特定の周波数で連続時間系と離散系の周波数特性を一致させることができます。
+
+```python
+# プリワーピングなし（デフォルト）
+filter_normal = zf.Z_Filter(a, c, sampling_freq=100.0)
+
+# プリワーピングあり（10Hzで周波数特性を一致させる）
+filter_prewarped = zf.Z_Filter(
+    a, c,
+    sampling_freq=100.0,
+    is_prewarping=True,
+    prewarping_freq=10.0  # 一致させたい周波数 [Hz]
+)
+```
+
+プリワーピングは、カットオフ周波数付近の特性を正確に再現したい場合に有用です。
+
 ### 利用可能なフィルタクラス
 
 - `Z_Filter`: 汎用離散時間フィルタ（分子・分母係数を直接指定）
