@@ -196,7 +196,7 @@ class Z_Filter:
         self.xnew_vec = np.zeros((len(self.a) - 1, 1), dtype=float)
         self.xold_vec = np.zeros((len(self.a) - 1, 1), dtype=float)
 
-        # 連続時間の可制御正準系の行列式を計算(
+        # 連続時間の可制御正準系の行列式を計算
         # NOTE: 係数行列は逆順で渡すことで正規の多項式の形に対応
         self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat = set_canonical_form(self.a[::-1], self.c[::-1])
 
