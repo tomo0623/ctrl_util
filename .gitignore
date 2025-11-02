@@ -1,4 +1,21 @@
+# テストファイル
 ctrl_util_test.py
+
+# Python
 */__pycache__/*
-uv.lock
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ビルド成果物
+*.egg-info/
+dist/
+build/
+
+# 環境
+.venv/
+venv/
 .temp/*
+
+# ロックファイル
+uv.lock

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ctrl_util"
 version = "0.1.0"
@@ -8,6 +12,10 @@ dependencies = [
     "matplotlib>=3.10.7",
     "numpy>=2.3.2",
 ]
+
+[tool.setuptools.packages.find]
+include = ["z_filter*", "accel_transform*"]
+exclude = ["sample*"]
 
 [dependency-groups]
 dev = [

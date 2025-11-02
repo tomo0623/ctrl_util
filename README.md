@@ -2,6 +2,43 @@
 
 制御工学ユーティリティライブラリ
 
+## インストール
+
+### 方法1: GitHubから直接インストール
+
+```bash
+pip install git+https://github.com/yourusername/ctrl_util.git
+```
+
+### 方法2: インストールせずに使う（ファイルコピー）
+
+`z_filter` フォルダをプロジェクトにコピーするだけで使えます：
+
+```
+your_project/
+├── z_filter/          # このフォルダをコピー
+│   ├── __init__.py
+│   └── z_filter.py
+└── your_script.py
+```
+
+```python
+from z_filter import z_filter as zf
+
+lpf = zf.Z_Filter_LPF(tau_lpf=0.1, sampling_freq=100.0)
+```
+
+### 方法3: ローカル開発
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/yourusername/ctrl_util.git
+cd ctrl_util
+
+# 開発モードでインストール
+pip install -e .
+```
+
 ## フィルタ機能 (z_filter)
 
 ### 基本的な使用方法
