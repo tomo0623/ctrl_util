@@ -1,3 +1,4 @@
 ctrl_util_test.py
 */__pycache__/*
 uv.lock
+.temp/*

@@ -14,7 +14,7 @@ def set_canonical_form(a_correct: Union[List[float], np.ndarray], c_correct: Uni
         c_correct: 正規の順番の分子多項式の係数 (c0, c1, c2, ...)
 
     Returns:
-        可制御正準系の行列 A_c と B_c と C_cのタプル
+        可制御正準系の行列 A_c と B_c と C_c と D_c のタプル
     """
     a_correct = np.array(a_correct, dtype=float)
     c_correct = np.array(c_correct, dtype=float)
@@ -25,6 +25,14 @@ def set_canonical_form(a_correct: Union[List[float], np.ndarray], c_correct: Uni
     # 正規化（a[-1] = 1にする）
     a_correct = a_correct / a_correct[-1]
     c_correct = c_correct / a_correct[-1]
+
+    # 分子と分母の次数が同じ場合、多項式の長除法で直達項を分離
+    D_c = 0.0
+    if len(c_correct) == len(a_correct):
+        # 直達項 D = c[-1] / a[-1] (既に正規化済みなので a[-1] = 1)
+        D_c = c_correct[-1]
+        # 分子から直達項を除去: c'(s) = c(s) - D * a(s)
+        c_correct = c_correct - D_c * a_correct
 
     # 可制御正準系の行列を計算
     n = len(a_correct) - 1
@@ -50,8 +58,10 @@ def set_canonical_form(a_correct: Union[List[float], np.ndarray], c_correct: Uni
     print(B_c)
     print("可制御正準系の行列 C_c:")
     print(C_c)
+    print("直達項 D_c:")
+    print(D_c)
 
-    return A_c, B_c, C_c
+    return A_c, B_c, C_c, D_c
 
 
 def c2d(
@@ -136,9 +146,9 @@ class Z_Filter:
         self.c = np.array(numerator, dtype=float)
         self.fs = sampling_freq
 
-        # プロパーな伝達関数化を確認
+        # プロパーな伝達関数を確認（分子の次数 <= 分母の次数）
         if len(self.a) < len(self.c):
-            raise ValueError("プロパーな伝達関数ではないのでエラー")
+            raise ValueError("プロパーな伝達関数ではないのでエラー（分子の次数 > 分母の次数）")
 
         # 正規化（a[0] = 1にする）
         if self.a[0] != 1.0:
@@ -151,8 +161,7 @@ class Z_Filter:
 
         # 連続時間の可制御正準系の行列式を計算(
         # NOTE: 係数行列は逆順で渡すことで正規の多項式の形に対応
-        self.Ac_mat, self.Bc_mat, self.Cc_mat = set_canonical_form(self.a[::-1], self.c[::-1])
-        self.Dc_mat = 0
+        self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat = set_canonical_form(self.a[::-1], self.c[::-1])
 
         # タスティン変換に基づく離散化
         if is_prewarping and prewarping_freq is not None:
