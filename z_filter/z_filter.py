@@ -219,17 +219,91 @@ class Z_Filter:
             )
 
         # 内部リセット処理実行
-        self.reset(np.zeros((len(self.a) - 1, 1), dtype=float))
+        self.reset(0, mode="output")
 
-    def reset(self, xini_vec) -> None:
+    def reset(self, value, mode: str = "output") -> None:
         """
         #     内部リセット（リアルタイム処理対応）
         #     Args:
-        #         xini_vec: フィルタ初期値
+        #         value: リセット値（スカラー、リスト、配列など）
+        #         mode: リセットモード
+        #               "output" - フィルタ出力がvalueとなるように状態を設定（デフォルト）
+        #               "state" - 内部状態ベクトルを直接valueで設定
         #     Returns:
         #         なし
         """
-        self.xnew_vec = xini_vec
+        expected_size = len(self.a) - 1
+
+        if mode == "state":
+            # 内部状態ベクトルを直接設定するモード
+            value_array = np.atleast_1d(np.asarray(value, dtype=float))
+
+            if value_array.size == 1:
+                # スカラー値の場合、全要素を同じ値で初期化
+                self.xnew_vec = np.full((expected_size, 1), value_array[0], dtype=float)
+            elif value_array.size == expected_size:
+                # 要素数が一致する場合、reshape して使用
+                self.xnew_vec = value_array.reshape(expected_size, 1)
+            else:
+                raise ValueError(
+                    f"初期値のサイズが不正です。期待値: {expected_size}, 実際: {value_array.size}"
+                )
+            # xold_vecもxnew_vecと同じ値に設定
+            self.xold_vec = self.xnew_vec.copy()
+
+        elif mode == "output":
+            # フィルタ出力から状態ベクトルを逆算するモード
+            value_array = np.atleast_1d(np.asarray(value, dtype=float))
+            y_target = float(value_array.flatten()[0])  # スカラー値として取得
+
+            # 出力方程式: y = C_d * x + D_d * u
+            # update メソッドは xold_vec を使うので、xold_vec を設定する
+            # 次の入力 u を y_target と仮定して逆算:
+            # y_target = C_d * x + D_d * y_target
+            # y_target * (1 - D_d) = C_d * x
+            # x = C_d^† * [y_target * (1 - D_d)]
+
+            if expected_size == 0:
+                # 状態なし（直達のみ）の場合
+                self.xnew_vec = np.zeros((0, 1), dtype=float)
+            else:
+                # 直達項をスカラーとして取得
+                if isinstance(self.Dd_mat, np.ndarray):
+                    Dd_scalar = float(self.Dd_mat.flatten()[0])
+                else:
+                    Dd_scalar = float(self.Dd_mat)
+
+                # C_d が全てゼロの場合
+                if np.all(np.abs(self.Cd_mat) < 1e-12):
+                    # 出力が状態に依存しない（D_d のみ）
+                    self.xnew_vec = np.zeros((expected_size, 1), dtype=float)
+                elif abs(1 - Dd_scalar) < 1e-12:
+                    # D_d ≈ 1 の場合、状態は出力にほぼ影響しない
+                    # 最小ノルム解として、わずかな影響を考慮
+                    Cd_norm_sq = np.sum(self.Cd_mat ** 2)
+                    y_adjusted = y_target * (1 - Dd_scalar)
+                    if Cd_norm_sq > 1e-12:
+                        self.xnew_vec = (self.Cd_mat.T * y_adjusted / Cd_norm_sq).reshape(expected_size, 1)
+                    else:
+                        self.xnew_vec = np.zeros((expected_size, 1), dtype=float)
+                else:
+                    # 通常のケース
+                    y_adjusted = y_target * (1 - Dd_scalar)
+
+                    # C_d の疑似逆行列を計算して状態を設定
+                    # C_d は (1, n) の行ベクトルなので、転置して正規化
+                    Cd_norm_sq = np.sum(self.Cd_mat ** 2)
+                    if Cd_norm_sq > 1e-12:
+                        # x = C_d^T * y_adjusted / ||C_d||^2
+                        self.xnew_vec = (self.Cd_mat.T * y_adjusted / Cd_norm_sq).reshape(expected_size, 1)
+                    else:
+                        self.xnew_vec = np.zeros((expected_size, 1), dtype=float)
+
+            # xold_vecもxnew_vecと同じ値に設定
+            self.xold_vec = self.xnew_vec.copy()
+
+        else:
+            raise ValueError(f"無効なモード: {mode}. 'output' または 'state' を指定してください。")
 
     def update(self, u) -> float:
         """
