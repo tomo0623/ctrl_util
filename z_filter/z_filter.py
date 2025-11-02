@@ -2,7 +2,44 @@
 # ctrl_util/z_filter/z_filter.py
 
 import numpy as np
+import logging
 from typing import Union, List
+
+# ロガーの設定 --- ライブラリはデフォルトで静かに振る舞う
+# ユーザー側で明示的にハンドラ/レベルを設定するか、以下のヘルパを呼ぶ
+logger = logging.getLogger(__name__)
+# ライブラリはハンドラを追加せず、NullHandlerを設定しておくのが推奨パターン
+if not logger.handlers:
+    logger.addHandler(logging.NullHandler())
+
+
+def enable_verbose_logging(level: int = logging.INFO):
+    """コンソール出力を有効にするヘルパ
+
+    Args:
+        level: 任意の logging レベル (デフォルト: logging.INFO)
+    """
+    logger.handlers.clear()
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(level)
+
+
+def disable_verbose_logging():
+    """コンソール出力を無効にしてライブラリを静かにするヘルパ"""
+    logger.handlers.clear()
+    logger.addHandler(logging.NullHandler())
+
+
+def set_log_level(level: int):
+    """ロガーのログレベルを設定するユーティリティ
+
+    Args:
+        level: logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR など
+    """
+    logger.setLevel(level)
 
 
 def set_canonical_form(a_correct: Union[List[float], np.ndarray], c_correct: Union[List[float], np.ndarray]) -> tuple:
@@ -52,14 +89,14 @@ def set_canonical_form(a_correct: Union[List[float], np.ndarray], c_correct: Uni
             C_c[0, i] = c_correct[i]
 
     # 可制御正準行列の確認
-    print("可制御正準系の行列 A_c:")
-    print(A_c)
-    print("可制御正準系の行列 B_c:")
-    print(B_c)
-    print("可制御正準系の行列 C_c:")
-    print(C_c)
-    print("直達項 D_c:")
-    print(D_c)
+    logger.debug("可制御正準系の行列 A_c:")
+    logger.debug(f"{A_c}")
+    logger.debug("可制御正準系の行列 B_c:")
+    logger.debug(f"{B_c}")
+    logger.debug("可制御正準系の行列 C_c:")
+    logger.debug(f"{C_c}")
+    logger.debug("直達項 D_c:")
+    logger.debug(f"{D_c}")
 
     return A_c, B_c, C_c, D_c
 
@@ -107,14 +144,14 @@ def c2d(
         D_d = Dc_mat
 
     # 離散化行列の確認
-    print("離散化行列 A_d:")
-    print(A_d)
-    print("離散化行列 B_d:")
-    print(B_d)
-    print("離散化行列 C_d:")
-    print(C_d)
-    print("離散化行列 D_d:")
-    print(D_d)
+    logger.debug("離散化行列 A_d:")
+    logger.debug(f"{A_d}")
+    logger.debug("離散化行列 B_d:")
+    logger.debug(f"{B_d}")
+    logger.debug("離散化行列 C_d:")
+    logger.debug(f"{C_d}")
+    logger.debug("離散化行列 D_d:")
+    logger.debug(f"{D_d}")
 
     return A_d, B_d, C_d, D_d
 
@@ -303,16 +340,16 @@ class Z_Filter_Butterworth(Z_Filter):
             pole = omega_c * np.exp(1j * angle)
             all_poles.append(pole)
         
-        print(f"全ての極 (order={order}):")
+        logger.debug(f"全ての極 (order={order}):")
         for i, pole in enumerate(all_poles):
-            print(f"  極{i+1}: {pole:.6f} (real={pole.real:.6f})")
+            logger.debug(f"  極{i+1}: {pole:.6f} (real={pole.real:.6f})")
         
         # 左半平面の極のみを選択（安定な極）
         stable_poles = [p for p in all_poles if p.real < -1e-10]  # より厳密な判定
         
-        print("左半平面の極 (安定極):")
+        logger.debug("左半平面の極 (安定極):")
         for i, pole in enumerate(stable_poles):
-            print(f"  安定極{i+1}: {pole:.6f}")
+            logger.debug(f"  安定極{i+1}: {pole:.6f}")
         
         if len(stable_poles) == 0:
             raise ValueError(f"安定な極が見つかりません (order={order})")
@@ -373,8 +410,8 @@ class Z_Filter_Butterworth(Z_Filter):
         dc_gain = denominator[-1]  # s=0での分母の値
         numerator = [dc_gain]  # 分子は定数項のみ
         
-        print("計算された係数:")
-        print(f"  分母: {denominator}")
-        print(f"  分子: {numerator}")
+        logger.debug("計算された係数:")
+        logger.debug(f"  分母: {denominator}")
+        logger.debug(f"  分子: {numerator}")
         
         return denominator, numerator
