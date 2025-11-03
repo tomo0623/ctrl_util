@@ -89,6 +89,9 @@ class AccTransform:
         Returns:
             tar_acc: 変換先加速度ベクトル[m/s^2], [x, y, z]
             ang_acc: 角加速度ベクトル(参考値)[rad/s^2], [x, y, z]
+        Note:
+            - 角速度に関しては剛体内であれば座標にかかわらず同じなので剛体内に固定されているジャイロセンサ値であれば何でもいい
+            - ただし、基準座標系に対して設置角度がずれてないジャイロセンサの値を使うこと
         """
         obs_acc = np.array(obs_acc)
         ang_vel_vec = np.array(ang_vel_vec)

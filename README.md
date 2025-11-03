@@ -195,3 +195,138 @@ filter_prewarped = zf.Z_Filter(
 ```
 
 プリワーピングは、カットオフ周波数付近の特性を正確に再現したい場合に有用です。
+
+## 加速度座標変換機能 (accel_transform)
+
+剛体内の加速度センサの測定値を、剛体上の別の点での加速度に座標変換する機能。
+ロボット工学や慣性航法システムでよく使われる剛体運動学の基本式を実装してる。
+計算過程で角加速度が必要になるため、角速度の近似微分を計算しているため、Class初期化時のフィルタ設定に留意すること。
+
+### 理論的背景
+
+剛体上の2点（観測点と目標点）の加速度の関係は、以下の式で表される：
+
+$$\boldsymbol{\alpha}_t = \boldsymbol{\alpha}_o + \dot{\boldsymbol{\omega}} \times \boldsymbol{r} + \boldsymbol{\omega} \times (\boldsymbol{\omega} \times \boldsymbol{r})$$
+
+ここで：
+- $\boldsymbol{\alpha}_t$: 目標点の加速度
+- $\boldsymbol{\alpha}_o$: 観測点の加速度（センサ測定値）
+- $\dot{\boldsymbol{\omega}}$: 角加速度ベクトル（角速度の時間微分）
+- $\boldsymbol{\omega}$: 角速度ベクトル（ジャイロセンサ測定値）
+- $\boldsymbol{r}$: 観測点から目標点へのベクトル
+  - なお、`×`は外積を意味し、すべての変数は3次元ベクトルであることに注意する
+
+**各項の物理的意味：**
+1. $\boldsymbol{\alpha}_o$: 観測点での並進加速度
+2. $\dot{\boldsymbol{\omega}} \times \boldsymbol{r}$: オイラー加速度（角加速度による接線加速度）
+3. $\boldsymbol{\omega} \times (\boldsymbol{\omega} \times \boldsymbol{r})$: 向心加速度（角速度による遠心加速度）
+
+### 基本的な使用方法
+
+```python
+from accel_transform import acc_trans as accT
+import numpy as np
+
+# 初期化
+obs2tar_vec = [0.1, 0.2, 0.3]  # 観測点→目標点のベクトル [m]
+sampling_freq = 100.0  # サンプリング周波数 [Hz]
+tau_lpf = 0.03  # LPF時定数 [秒]
+tau_adf = 0.02  # 微分フィルタ時定数 [秒]
+
+transformer = accT.AccTransform(obs2tar_vec, sampling_freq, tau_lpf, tau_adf)
+
+# リアルタイム処理のループ
+for i in range(len(data)):
+    # センサデータの取得
+    obs_acc = [ax, ay, az]  # 加速度センサ値 [m/s^2]
+    ang_vel = [wx, wy, wz]  # ジャイロセンサ値 [rad/s]
+
+    # 座標変換の実行
+    tar_acc, ang_acc = transformer.update(obs_acc, ang_vel)
+
+    # tar_acc: 目標点での加速度 [m/s^2]
+    # ang_acc: 角加速度（参考値）[rad/s^2]
+```
+
+### パラメータの説明
+
+#### コンストラクタ `AccTransform(obs2tar_vec, sampling_freq, tau_lpf, tau_adf)`
+
+- **`obs2tar_vec`**: 観測点から目標点へのベクトル `[x, y, z]` [m]
+  - 加速度センサが取り付けられている位置から、加速度を知りたい目標位置までの相対位置ベクトル
+  - 右手座標系で定義
+
+- **`sampling_freq`**: サンプリング周波数 [Hz]
+  - センサデータの更新レート
+
+- **`tau_lpf`**: LPF（ローパスフィルタ）時定数 [秒]
+  - 角加速度計算時の微分フィルタに使用
+  - 小さいほど応答が速いが、ノイズの影響を受けやすい
+
+- **`tau_adf`**: ADF（近似微分フィルタ）時定数 [秒]
+  - 角加速度計算時のノイズ除去に使用
+  - 小さいほど精度が高いが、ノイズの影響を受けやすい
+
+**フィルタ時定数の設定ガイドライン:**
+- 最小値: `サンプリング周期 × 2` 以上
+- 推奨値: 0.01～0.1秒程度（100Hzサンプリングの場合）
+- ノイズが大きい場合は時定数を大きく、応答性を優先する場合は小さく設定
+
+#### `update(obs_acc, ang_vel)` メソッド
+
+- **入力:**
+  - `obs_acc`: 観測点（センサ位置）での加速度ベクトル `[ax, ay, az]` [m/s^2]
+  - `ang_vel`: 剛体の角速度ベクトル `[wx, wy, wz]` [rad/s]
+
+- **出力:**
+  - `tar_acc`: 目標点での加速度ベクトル `[ax, ay, az]` [m/s^2]
+  - `ang_acc`: 角加速度ベクトル `[alpha_x, alpha_y, alpha_z]` [rad/s^2]（参考値）
+
+### 応用例
+
+#### 例1: ロボットアームの先端加速度計算
+
+```python
+# ロボットアームの根元にセンサがあり、先端の加速度を知りたい場合
+obs2tar_vec = [0.0, 0.0, 0.5]  # アーム長0.5m（Z方向）
+transformer = accT.AccTransform(obs2tar_vec, 100.0, 0.03, 0.02)
+
+# センサデータから先端加速度を計算
+tip_acc, _ = transformer.update(base_acc, gyro_data)
+```
+
+#### 例2: 車両の重心加速度推定
+
+```python
+# センサが車両前方に設置されており、重心の加速度を推定
+obs2tar_vec = [-0.5, 0.0, -0.1]  # 重心方向へのベクトル
+transformer = accT.AccTransform(obs2tar_vec, 100.0, 0.05, 0.03)
+
+# 車両の角速度とセンサ加速度から重心加速度を計算
+cg_acc, _ = transformer.update(sensor_acc, gyro_data)
+```
+
+### ログ出力の制御
+
+`z_filter` と同様に、デフォルトでは何も出力しない。内部計算の詳細を確認したい場合は：
+
+```python
+import logging
+from accel_transform import acc_trans as accT
+
+# デバッグ情報を表示
+accT.enable_verbose_logging(logging.DEBUG)
+
+# 変換処理を実行（内部計算が表示される）
+transformer = accT.AccTransform([0.1, 0.2, 0.3], 100.0, 0.03, 0.02)
+
+# ログ出力を無効に戻す
+accT.disable_verbose_logging()
+```
+
+### 注意事項
+
+1. **座標系の統一**: 加速度ベクトル、角速度ベクトル、変換ベクトルは全て同じ座標系（右手座標系）で定義する必要がある
+2. **重力加速度の扱い**: 加速度センサの出力には重力加速度が含まれています。必要に応じて重力成分を除去してから座標変換を行うこと（仮想的に加速度センサ搭載個所を変更したときの加速度センサ値を得たい場合は、センサ値をそのまま変換してよい）
+3. **角加速度の精度**: 角速度を数値微分して角加速度を計算するため、ノイズの影響を受けやすくなります。適切なフィルタ時定数の設定が重要となる（もしノイズがひどい場合は、ADFはサンプリング周期の倍の時定数で固定し、LPF時定数のみを弄るのがおすすめ）
+4. **サンプリング周波数**: 高速な運動を扱う場合は、サンプリング周波数を十分に高く設定してください（サンプリング定理に従う）

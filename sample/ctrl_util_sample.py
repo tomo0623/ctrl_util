@@ -118,8 +118,9 @@ if 1:
     loggs = np.zeros((len(t), 9))
 
     for i in range(len(t)):
-        # センサ信号
+        # 角速度センサ信号計測値
         ang_vel_vec = [noisy_signal1[i], noisy_signal2[i], noisy_signal3[i]]
+        # 加速度センサ計測値(変換元座標での計測値)
         obs_acc = np.array([-0.2, 1.0, 9.81]) + np.array([1, 1, 1]) * base_signal[i]
         # 加速度座標変換の更新
         tar_acc, ang_acc = acc_transformer.update(obs_acc, ang_vel_vec)
@@ -196,4 +197,3 @@ if 1:
 
     plt.tight_layout()  # レイアウトを調整
     plt.show()
-    
