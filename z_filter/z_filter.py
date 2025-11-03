@@ -21,7 +21,7 @@ def enable_verbose_logging(level: int = logging.INFO):
     """
     logger.handlers.clear()
     handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(level)
@@ -249,9 +249,7 @@ class Z_Filter:
                 # 要素数が一致する場合、reshape して使用
                 self.xnew_vec = value_array.reshape(expected_size, 1)
             else:
-                raise ValueError(
-                    f"初期値のサイズが不正です。期待値: {expected_size}, 実際: {value_array.size}"
-                )
+                raise ValueError(f"初期値のサイズが不正です。期待値: {expected_size}, 実際: {value_array.size}")
             # xold_vecもxnew_vecと同じ値に設定
             self.xold_vec = self.xnew_vec.copy()
 
@@ -283,7 +281,9 @@ class Z_Filter:
                     x_ss = np.linalg.solve(I_minus_Ad, self.Bd_mat * u_ss_val)
 
                     # 計算された定常状態での出力を確認
-                    Dd_scalar = float(self.Dd_mat.flatten()[0]) if isinstance(self.Dd_mat, np.ndarray) else float(self.Dd_mat)
+                    Dd_scalar = (
+                        float(self.Dd_mat.flatten()[0]) if isinstance(self.Dd_mat, np.ndarray) else float(self.Dd_mat)
+                    )
                     y_ss_computed = (self.Cd_mat @ x_ss)[0, 0] + Dd_scalar * u_ss_val
 
                     # 出力が目標値と一致するようにスケーリング
@@ -297,8 +297,10 @@ class Z_Filter:
                 except np.linalg.LinAlgError:
                     # (I - A_d) が特異な場合、疑似逆行列ベースの方法を使用
                     logger.warning("(I - A_d) が特異行列のため、疑似逆行列を使用します")
-                    Cd_norm_sq = np.sum(self.Cd_mat ** 2)
-                    Dd_scalar = float(self.Dd_mat.flatten()[0]) if isinstance(self.Dd_mat, np.ndarray) else float(self.Dd_mat)
+                    Cd_norm_sq = np.sum(self.Cd_mat**2)
+                    Dd_scalar = (
+                        float(self.Dd_mat.flatten()[0]) if isinstance(self.Dd_mat, np.ndarray) else float(self.Dd_mat)
+                    )
 
                     if Cd_norm_sq < 1e-12:
                         self.xnew_vec = np.zeros((expected_size, 1), dtype=float)
@@ -328,7 +330,8 @@ class Z_Filter:
         y = self.Cd_mat @ self.xold_vec + self.Dd_mat * u
         return y[0, 0]
 
-# 一次LPFフィルタクラス 
+
+# 一次LPFフィルタクラス
 class Z_Filter_LPF(Z_Filter):
     """
     一次LPFフィルタクラス
@@ -344,6 +347,7 @@ class Z_Filter_LPF(Z_Filter):
         c = np.array([1])
         a = np.array([tau_lpf, 1])
         super().__init__(a, c, sampling_freq=sampling_freq)
+
 
 # 一次微分フィルタクラス
 class Z_Filter_ADF(Z_Filter):
@@ -362,6 +366,7 @@ class Z_Filter_ADF(Z_Filter):
         a = np.array([tau_derivative, 1])
         super().__init__(a, c, sampling_freq=sampling_freq)
 
+
 # 一次微分フィルタとLPFを組み合わせたフィルタクラス
 class Z_Filter_ADF_with_LPF(Z_Filter):
     """
@@ -379,6 +384,7 @@ class Z_Filter_ADF_with_LPF(Z_Filter):
         c = np.array([1 / (tau_lpf * tau_adf), 0])
         a = np.array([1, (tau_lpf + tau_adf) / (tau_lpf * tau_adf), 1 / (tau_lpf * tau_adf)])
         super().__init__(a, c, sampling_freq=sampling_freq)
+
 
 # N次のバターワースフィルタクラス
 class Z_Filter_Butterworth(Z_Filter):
@@ -401,17 +407,17 @@ class Z_Filter_Butterworth(Z_Filter):
     def _calculate_butterworth_coefficients(self, order: int, cutoff_freq: float) -> tuple:
         """
         バターワースフィルタの連続時間系係数を計算
-        
+
         Args:
             order: フィルタの次数
             cutoff_freq: カットオフ周波数 [Hz]
-            
+
         Returns:
             (denominator, numerator): 分母係数と分子係数のタプル
         """
         # 正規化カットオフ周波数 (rad/s)
         omega_c = 2 * np.pi * cutoff_freq
-        
+
         # バターワース極の計算
         # s_k = omega_c * exp(j * (pi/2 + (2k-1)*pi/(2*n))) for k = 1, 2, ..., n
         # または s_k = omega_c * exp(j * (pi/2 + (2k+1)*pi/(2*n))) for k = 0, 1, ..., n-1
@@ -420,29 +426,29 @@ class Z_Filter_Butterworth(Z_Filter):
             angle = np.pi / 2 + (2 * k + 1) * np.pi / (2 * order)
             pole = omega_c * np.exp(1j * angle)
             all_poles.append(pole)
-        
+
         logger.debug(f"全ての極 (order={order}):")
         for i, pole in enumerate(all_poles):
-            logger.debug(f"  極{i+1}: {pole:.6f} (real={pole.real:.6f})")
-        
+            logger.debug(f"  極{i + 1}: {pole:.6f} (real={pole.real:.6f})")
+
         # 左半平面の極のみを選択（安定な極）
         stable_poles = [p for p in all_poles if p.real < -1e-10]  # より厳密な判定
-        
+
         logger.debug("左半平面の極 (安定極):")
         for i, pole in enumerate(stable_poles):
-            logger.debug(f"  安定極{i+1}: {pole:.6f}")
-        
+            logger.debug(f"  安定極{i + 1}: {pole:.6f}")
+
         if len(stable_poles) == 0:
             raise ValueError(f"安定な極が見つかりません (order={order})")
-        
+
         # 複素共役極を実係数多項式として処理
         denominator = [1.0]  # 最高次の係数
         processed_poles = set()  # 処理済みの極のインデックス
-        
+
         for i, pole in enumerate(stable_poles):
             if i in processed_poles:
                 continue
-                
+
             if abs(pole.imag) < 1e-10:  # 実極の場合
                 # (s - pole) との積
                 new_denominator = [0.0] * (len(denominator) + 1)
@@ -451,48 +457,48 @@ class Z_Filter_Butterworth(Z_Filter):
                     new_denominator[j + 1] += -pole.real * denominator[j]
                 denominator = new_denominator
                 processed_poles.add(i)
-                
+
             else:  # 複素極の場合（共役ペア）
                 # 共役ペアを探す
                 conjugate_pole = np.conj(pole)
                 conjugate_index = None
-                
+
                 for j, other_pole in enumerate(stable_poles):
                     if j != i and j not in processed_poles:
                         if abs(other_pole - conjugate_pole) < 1e-10:
                             conjugate_index = j
                             break
-                
+
                 if conjugate_index is not None:
                     # (s - pole)(s - conj(pole)) = s² - 2*Re(pole)*s + |pole|²
                     real_part = pole.real
                     magnitude_squared = pole.real**2 + pole.imag**2
-                    
+
                     # s² - 2*real_part*s + magnitude_squared との積
                     new_denominator = [0.0] * (len(denominator) + 2)
                     for j in range(len(denominator)):
                         new_denominator[j] += denominator[j]  # s²項
                         new_denominator[j + 1] += -2 * real_part * denominator[j]  # s項
                         new_denominator[j + 2] += magnitude_squared * denominator[j]  # 定数項
-                    
+
                     denominator = new_denominator
                     processed_poles.add(i)
                     processed_poles.add(conjugate_index)
                 else:
                     # 共役ペアが見つからない場合（エラー）
                     raise ValueError(f"複素極 {pole} の共役ペアが見つかりません")
-        
+
         # 実数部のみを取得（虚数部は数値誤差）
         denominator = [coeff.real if np.isreal(coeff) else coeff for coeff in denominator]
-        
+
         # DC gain = 1 となるように分子を調整
         # H(0) = numerator(0) / denominator(0) = 1
         # 分子は定数項のみ（ローパスフィルタ）
         dc_gain = denominator[-1]  # s=0での分母の値
         numerator = [dc_gain]  # 分子は定数項のみ
-        
+
         logger.debug("計算された係数:")
         logger.debug(f"  分母: {denominator}")
         logger.debug(f"  分子: {numerator}")
-        
+
         return denominator, numerator

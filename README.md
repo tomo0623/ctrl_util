@@ -37,6 +37,9 @@ cd ctrl_util
 
 # 開発モードでインストール
 pip install -e .
+
+# (uvの場合)開発モードでインストール
+uv pip install -e .
 ```
 
 ## フィルタ機能 (z_filter)
