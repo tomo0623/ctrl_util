@@ -53,9 +53,11 @@ class AccTransform:
         剛体内の加速度信号を座標変換の初期化
         - 座標変換用のアーム長(変換元→変換先のベクトル)を設定する
         - 微分計算用の各種フィルタ設定をする(サンプリング周期, フィルタ定数)
+        - 右手座標系で規定された空間であることを前提とする
+        - 角加速度算出の微分は近似微分計算でノイズ対策してるためフィルタ時定数は適切に設定すること
 
         Args:
-            obs2tar_vec: 変換元から変換先へのベクトル
+            obs2tar_vec: 変換元から変換先へのベクトル[x, y, z]
             sampling_freq: サンプリング周波数 [Hz]
             tau_lpf: LPF時定数(近似微分計算用) [秒]
             tau_adf: ADF時定数(近似微分計算用) [秒]
@@ -86,6 +88,7 @@ class AccTransform:
             ang_vel_vec: 剛体の角速度ベクトル[rad/s], [x, y, z]
         Returns:
             tar_acc: 変換先加速度ベクトル[m/s^2], [x, y, z]
+            ang_acc: 角加速度ベクトル(参考値)[rad/s^2], [x, y, z]
         """
         obs_acc = np.array(obs_acc)
         ang_vel_vec = np.array(ang_vel_vec)
@@ -97,13 +100,13 @@ class AccTransform:
 
         # 座標変換計算
         # NOTE: αt = αo + ω_dot×r + ω×(ω×r)
-        # オイラー力
+        # オイラー加速度（角加速度による接線加速度）
         cross1 = np.cross(ang_acc, self.obs2tar_vec)
-        # 向心力/遠心力, ベクトル3重積
-        # NOTE: ω×(ω×r) = (r・ω)ω - (ω・ω)r
+        # 向心加速度（角速度による遠心加速度）, ベクトル3重積
+        # NOTE: ω×(ω×r) = (ω・r)ω - (ω・ω)r, 今回は内積に分解せず外積のまま計算する
         cross2 = np.cross(ang_vel_vec, np.cross(ang_vel_vec, self.obs2tar_vec))
 
-        # 相対運動の効果分を補正
+        # 観測点加速度に剛体回転の効果を加算して目標点加速度を計算
         tar_acc = obs_acc + cross1 + cross2
 
         return tar_acc, ang_acc
