@@ -1,5 +1,6 @@
 # テストファイル
 ctrl_util_test.py
+*.png
 
 # Python
 */__pycache__/*
