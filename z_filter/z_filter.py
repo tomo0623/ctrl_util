@@ -386,6 +386,44 @@ class Z_Filter_ADF_with_LPF(Z_Filter):
         super().__init__(a, c, sampling_freq=sampling_freq)
 
 
+# 2次のノッチフィルタクラス
+class Z_Filter_Notch(Z_Filter):
+    """
+    2次のノッチフィルタクラス
+    """
+
+    def __init__(
+        self,
+        omega_n: float,
+        zeta: float,
+        d: float,
+        sampling_freq: float = 1.0,
+        is_prewarping: bool = True,
+    ):
+        """
+        2次のノッチフィルタの初期化
+        Args:
+            omega_n: ノッチの中心周波数 [rad/s]
+            zeta: ノッチの幅, 減衰係数 [-]
+            d: ノッチの深さ [-]
+            sampling_freq: サンプリング周波数 [Hz]
+            is_prewarping: プリワーピング処理の有効化フラグ（デフォルト: True）
+                          Trueの場合、タスティン変換による周波数歪みを補正
+        """
+        # プリワーピング補正: タスティン変換で周波数が歪むのを補正
+        if is_prewarping:
+            T = 1 / sampling_freq
+            # プリワーピング公式: omega_prewarped = tan(omega * T / 2) / (T / 2)
+            omega_corrected = np.tan(omega_n * T / 2) / (T / 2)
+        else:
+            omega_corrected = omega_n
+
+        c = np.array([1, d * 2 * zeta * omega_corrected, omega_corrected**2])
+        a = np.array([1, 2 * zeta * omega_corrected, omega_corrected**2])
+        # 基底クラスではプリワーピングを使わない（既に補正済み）
+        super().__init__(a, c, sampling_freq=sampling_freq, is_prewarping=False)
+
+
 # N次のバターワースフィルタクラス
 class Z_Filter_Butterworth(Z_Filter):
     """

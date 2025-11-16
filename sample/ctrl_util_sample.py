@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 
 # ----------------------------------------------------------------------- 基本的なZフィルタの動作確認テスト
 
-if 1:
+if 0:  # ノッチフィルタのテストのみ実行する場合は0に変更
     # ---------------------- 正弦波信号の生成
     Fs = 100  # サンプリング周波数
     max_time = 10.0  # 信号の長さ（秒）
@@ -92,7 +92,7 @@ if 1:
 
 
 # ----------------------------------------------------------------------- 基本的な加速度座標変換の動作確認テスト
-if 1:
+if 0:  # ノッチフィルタのテストのみ実行する場合は0に変更
     # ---------------------- 正弦波信号の生成
     Fs = 100  # サンプリング周波数
     max_time = 10.0  # 信号の長さ（秒）
@@ -197,3 +197,80 @@ if 1:
 
     plt.tight_layout()  # レイアウトを調整
     plt.show()
+
+if 1:
+    # ---------------------- ノッチフィルタの動作確認テスト
+    Fs = 100  # サンプリング周波数
+    max_time = 10.0  # 信号の長さ（秒）
+    t = np.arange(0, max_time, 1 / Fs)
+
+    # 元信号（1Hzの正弦波）
+    base_signal = np.sin(2 * np.pi * 1 * t) + 5
+
+    # 25Hzのノイズ成分を重畳
+    noise_freq = 25  # Hz
+    noise_signal = 2.0 * np.sin(2 * np.pi * noise_freq * t)
+
+    # ノイズを含んだ信号
+    noisy_signal = base_signal + noise_signal
+
+    # ノッチフィルタの初期化
+    # omega_n: ノッチの中心周波数 [rad/s]
+    # zeta: ノッチの幅（減衰係数）
+    # d: ノッチの深さ（0に近いほど深い）
+    omega_n = 2 * np.pi * noise_freq  # 25Hzに対応
+    zeta = 0.1  # ノッチの幅
+    d = 0.01  # ノッチの深さ（0.01 = ほぼ完全に除去）
+
+    print("ノッチフィルタ: 25Hzを除去")
+    notch_filter = zf.Z_Filter_Notch(omega_n=omega_n, zeta=zeta, d=d, sampling_freq=Fs)
+
+    # フィルタリング処理（時系列処理の模擬）
+    filtered_signal = np.zeros(len(t))
+
+    for i in range(len(t)):
+        if i < 10:
+            # リセットcommandでフィルタを現在値に初期化
+            notch_filter.reset(noisy_signal[i])
+        filtered_signal[i] = notch_filter.update(noisy_signal[i])
+
+    # ---------------------- 結果の可視化
+    # 3段のグラフを作成（X軸をリンク）
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+
+    # 上段：ノイズを含んだ信号と元信号
+    ax1.plot(t, noisy_signal, label="Noisy Signal (Base + 25Hz)", alpha=0.7)
+    ax1.plot(t, base_signal, label="Base Signal (1Hz)", linestyle="--", linewidth=2)
+    ax1.set_ylabel("Amplitude")
+    ax1.set_title("Input Signal: Base Signal with 25Hz Noise")
+    ax1.legend()
+    ax1.grid()
+
+    # 中段：フィルタ後の信号と元信号の比較
+    ax2.plot(t, filtered_signal, label="Filtered Signal (Notch Filter)", linewidth=2)
+    ax2.plot(t, base_signal, label="Base Signal (1Hz)", linestyle="--", alpha=0.7)
+    ax2.set_ylabel("Amplitude")
+    ax2.set_title("Output Signal: After Notch Filter (25Hz Removed)")
+    ax2.legend()
+    ax2.grid()
+
+    # 下段：除去されたノイズ成分（理論値との比較）
+    removed_noise = noisy_signal - filtered_signal
+    ax3.plot(t, removed_noise, label="Removed Component", alpha=0.7)
+    ax3.plot(t, noise_signal, label="Original 25Hz Noise", linestyle="--", alpha=0.7)
+    ax3.set_xlabel("Time [s]")
+    ax3.set_ylabel("Amplitude")
+    ax3.set_title("Removed Noise Component vs Original 25Hz Noise")
+    ax3.legend()
+    ax3.grid()
+
+    plt.tight_layout()
+    # グラフをファイルに保存（X11が動作しない場合の対策）
+    # plt.savefig('notch_filter_result.png', dpi=150, bbox_inches='tight')
+    # print("グラフを notch_filter_result.png に保存しました")
+    # インタラクティブ表示を試みる
+    try:
+        plt.show()
+    except Exception as e:
+        print(f"インタラクティブ表示に失敗しました: {e}")
+        print("代わりに notch_filter_result.png を確認してください")
