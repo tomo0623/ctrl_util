@@ -108,6 +108,7 @@ def c2d(
     Dc_mat: np.array,
     Ts: float,
     method: str = "tustin",
+    prewarp_freq: float = None,
 ) -> tuple:
     """
     連続時間系の可制御正準系を離散時間系に変換する
@@ -118,6 +119,7 @@ def c2d(
         Dc_mat: 連続時間系の行列 D_c
         Ts: サンプリング周期 [秒]
         method: 離散化手法 tustin / euler
+        prewarp_freq: プリワーピング周波数 [rad/s]（Noneの場合は通常のタスティン変換）
     Returns:
         A_d, B_d, C_d, D_d: 離散時間系の行列 A_d, B_d, C_d, D_d のタプル
     """
@@ -131,11 +133,21 @@ def c2d(
     # 離散化処理
     if method == "tustin":
         # タスティン変換による離散化
-        phi_mat = np.linalg.inv(np.eye(Ac_mat.shape[0]) - (Ts / 2) * Ac_mat)
-        A_d = (np.eye(Ac_mat.shape[0]) + (Ts / 2) * Ac_mat) @ phi_mat
-        B_d = phi_mat @ Bc_mat * Ts
+        # プリワーピング補正: s = alpha * (z-1)/(z+1)の係数alphaを計算
+        if prewarp_freq is not None and prewarp_freq > 0:
+            # プリワーピング: alpha = omega_0 / tan(omega_0 * T / 2)
+            alpha = prewarp_freq / np.tan(prewarp_freq * Ts / 2)
+        else:
+            # 通常のタスティン: alpha = 2 / T
+            alpha = 2.0 / Ts
+
+        # タスティン変換の公式: s = alpha * (z-1)/(z+1)を状態空間表現に適用
+        # (alpha/2) の係数でスケーリング
+        phi_mat = np.linalg.inv(np.eye(Ac_mat.shape[0]) - (1 / alpha) * Ac_mat)
+        A_d = (np.eye(Ac_mat.shape[0]) + (1 / alpha) * Ac_mat) @ phi_mat
+        B_d = phi_mat @ Bc_mat * (2 / alpha)
         C_d = Cc_mat @ phi_mat
-        D_d = Cc_mat @ phi_mat @ Bc_mat * (Ts / 2) + Dc_mat
+        D_d = Cc_mat @ phi_mat @ Bc_mat * (1 / alpha) + Dc_mat
     elif method == "euler":
         # オイラー法で離散化
         A_d = Ac_mat * Ts + np.eye(Ac_mat.shape[0])
@@ -203,21 +215,17 @@ class Z_Filter:
         self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat = set_canonical_form(self.a[::-1], self.c[::-1])
 
         # タスティン変換に基づく離散化
+        T = 1 / self.fs
         if is_prewarping and prewarping_freq is not None:
-            # プリワーピング処理
-            T = 1 / self.fs
-            omega_0 = 2 * np.pi * prewarping_freq
-            omega_c = omega_0 / np.tan(omega_0 * T / 2)
-            self.fs_modified = omega_c / (2 * np.pi)
-
-            # 離散化処理
+            # プリワーピング処理あり: 指定周波数でプリワーピング
+            prewarp_omega = 2 * np.pi * prewarping_freq  # Hz -> rad/s
             self.Ad_mat, self.Bd_mat, self.Cd_mat, self.Dd_mat = c2d(
-                self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat, 1 / self.fs_modified
+                self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat, T, prewarp_freq=prewarp_omega
             )
         else:
-            # プリワーピング処理なしで離散化
+            # プリワーピング処理なし: 通常のタスティン変換
             self.Ad_mat, self.Bd_mat, self.Cd_mat, self.Dd_mat = c2d(
-                self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat, 1 / self.fs
+                self.Ac_mat, self.Bc_mat, self.Cc_mat, self.Dc_mat, T, prewarp_freq=None
             )
 
         # 内部リセット処理実行
@@ -408,20 +416,16 @@ class Z_Filter_Notch(Z_Filter):
             d: ノッチの深さ [-]
             sampling_freq: サンプリング周波数 [Hz]
             is_prewarping: プリワーピング処理の有効化フラグ（デフォルト: True）
-                          Trueの場合、タスティン変換による周波数歪みを補正
+                          Trueの場合、ノッチ中心周波数でプリワーピング補正
         """
-        # プリワーピング補正: タスティン変換で周波数が歪むのを補正
-        if is_prewarping:
-            T = 1 / sampling_freq
-            # プリワーピング公式: omega_prewarped = tan(omega * T / 2) / (T / 2)
-            omega_corrected = np.tan(omega_n * T / 2) / (T / 2)
-        else:
-            omega_corrected = omega_n
+        # ノッチフィルタの伝達関数係数
+        c = np.array([1, d * 2 * zeta * omega_n, omega_n**2])
+        a = np.array([1, 2 * zeta * omega_n, omega_n**2])
 
-        c = np.array([1, d * 2 * zeta * omega_corrected, omega_corrected**2])
-        a = np.array([1, 2 * zeta * omega_corrected, omega_corrected**2])
-        # 基底クラスではプリワーピングを使わない（既に補正済み）
-        super().__init__(a, c, sampling_freq=sampling_freq, is_prewarping=False)
+        # 基底クラスのプリワーピング機能を使用
+        # ノッチ中心周波数でプリワーピング
+        prewarping_freq = omega_n / (2 * np.pi) if is_prewarping else None
+        super().__init__(a, c, sampling_freq=sampling_freq, is_prewarping=is_prewarping, prewarping_freq=prewarping_freq)
 
 
 # N次のバターワースフィルタクラス

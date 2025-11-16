@@ -266,8 +266,8 @@ if 1:
 
     plt.tight_layout()
     # グラフをファイルに保存（X11が動作しない場合の対策）
-    # plt.savefig('notch_filter_result.png', dpi=150, bbox_inches='tight')
-    # print("グラフを notch_filter_result.png に保存しました")
+    plt.savefig('notch_filter_result.png', dpi=150, bbox_inches='tight')
+    print("グラフを notch_filter_result.png に保存しました")
     # インタラクティブ表示を試みる
     try:
         plt.show()
